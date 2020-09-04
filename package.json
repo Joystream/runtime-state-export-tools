@@ -1,0 +1,26 @@
+{
+  "name": "@joystream/api-examples",
+  "version": "1.0.0",
+  "license": "GPL-3.0-only",
+  "scripts": {
+    "postinstall": "yarn tsc",
+    "export-members": "node lib/export_members",
+    "export-forum": "node lib/export_forum",
+    "export-content": "node lib/export_content",
+    "export-balances": "node lib/export_balances"
+  },
+  "dependencies": {
+    "@joystream/types": "^0.12.0",
+    "@polkadot/api": "^0.96.1",
+    "@polkadot/keyring": "^1.7.0-beta.5",
+    "@polkadot/types": "^0.96.1",
+    "@polkadot/util": "^1.7.0-beta.5",
+    "@polkadot/util-crypto": "^1.7.0-beta.5",
+    "@types/bn.js": "^4.11.5",
+    "bn.js": "^4.11.8"
+  },
+  "devDependencies": {
+    "@polkadot/ts": "^0.1.56",
+    "typescript": "3.7.2"
+  }
+}
