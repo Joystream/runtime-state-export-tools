@@ -2,39 +2,63 @@ import create_api from './api'
 import { ApiPromise } from '@polkadot/api'
 import { Profile, MemberId } from '@joystream/types/members'
 import { Option } from '@polkadot/types/'
-import { AccountId } from '@polkadot/types/interfaces'
+import { Balance } from '@polkadot/types/interfaces'
 
 main()
 
 async function main () {
     const api = await create_api()
-    // WIP
-    console.log(await enumerate_member_accounts(api))
+
+    const accounts = await enumerate_member_accounts(api)
+    const balances = await get_account_balances(api, accounts)
+
+    console.log(JSON.stringify({
+        balances: balances.map(([account, balance]) => [
+            account,
+            balance,
+        ])
+    }))
+
     api.disconnect()
 }
 
-// member accounts: get freebalance and reserved balances (council participation)
-async function enumerate_member_accounts(api: ApiPromise) : Promise<AccountId[]> {
-    const first = 0
-    const next = (await api.query.members.membersCreated() as MemberId).toNumber();
+async function get_account_balances(api: ApiPromise, accounts: string[]) {
+    let balances = [];
 
-    let accounts: AccountId[] = [];
+    for (let i = 0; i < accounts.length; i++) {
+        const account = accounts[i]
+        const free_balance: Balance = (await api.query.balances.freeBalance(account)) as Balance
+        balances.push([account, free_balance.toNumber()])
+    }
+
+    return balances
+}
+
+// member accounts: get freebalance and reserved balances (council participation)
+async function enumerate_member_accounts(api: ApiPromise) : Promise<string[]> {
+    const first = 0
+    const next = (await api.query.members.membersCreated() as MemberId).toNumber()
+
+    let accounts: string[] = []
 
     for (let id = first; id < next; id++ ) {
-        const profile = await api.query.members.memberProfile(id) as Option<Profile>;
+        const profile = await api.query.members.memberProfile(id) as Option<Profile>
 
         if (profile.isSome) {
             const p = profile.unwrap();
-            if (!accounts.includes(p.root_account)) {
-                accounts.push(p.root_account)
+            const root_account = p.root_account.toString()
+            const controller_account = p.controller_account.toString()
+
+            if (!accounts.includes(root_account)) {
+                accounts.push(root_account)
             }
-            if (!accounts.includes(p.controller_account)) {
-                accounts.push(p.controller_account)
+            if (!accounts.includes(controller_account)) {
+                accounts.push(controller_account)
             }
         }
     }
 
-    return accounts;
+    return accounts
 }
 
 // TODO:
