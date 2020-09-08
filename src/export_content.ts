@@ -82,9 +82,9 @@ async function get_all_classes(api: ApiPromise) {
 
     for (let id = first; id < next; id++ ) {
         const clazz = await get_checked_map_value<Class>(api, 'versionedStore', 'classById', id) as Class;
-        const permissions =  new SingleLinkedMapEntry<ClassPermissionsType, ClassId>(
-            ClassPermissionsType,
+        const permissions =  new SingleLinkedMapEntry<ClassId, ClassPermissionsType>(
             ClassId,
+            ClassPermissionsType,
             await api.query.versionedStorePermissions.classPermissionsByClassId(id)
         )
 
@@ -109,9 +109,9 @@ async function get_all_entities(api: ApiPromise) : Promise<ExportedEntities> {
         
         const maintainerStorageKey = api.query.versionedStorePermissions.entityMaintainerByEntityId.key(id)
         const maintainerEntry = await api.rpc.state.getStorage(maintainerStorageKey) as unknown as Option<Tuple>
-        const maintainer = maintainerEntry.isSome ? new SingleLinkedMapEntry<Credential, EntityId>(
-            Credential,
+        const maintainer = maintainerEntry.isSome ? new SingleLinkedMapEntry<EntityId, Credential>(
             EntityId,
+            Credential,
             maintainerEntry.unwrap()
         ).value : undefined
 
