@@ -3,11 +3,7 @@
   "version": "1.0.0",
   "license": "GPL-3.0-only",
   "scripts": {
-    "postinstall": "yarn tsc",
-    "export-members": "node lib/export_members",
-    "export-forum": "node lib/export_forum",
-    "export-content": "node lib/export_content",
-    "export-balances": "node lib/export_balances"
+    "postinstall": "yarn tsc"
   },
   "dependencies": {
     "@joystream/types": "^0.12.0",
