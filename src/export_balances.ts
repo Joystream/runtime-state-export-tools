@@ -105,7 +105,10 @@ async function main() {
 
   console.log(
     JSON.stringify({
-      balances: exportedBalances,
+      balances: exportedBalances.map((balances) => [
+        balances.account,
+        balances.balance,
+      ]),
     })
   )
 
