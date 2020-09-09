@@ -22,7 +22,7 @@ async function get_all_members(api: ApiPromise): Promise<GenesisMember[]> {
   const first = 0
   const next = ((await api.query.members.membersCreated()) as MemberId).toNumber()
 
-  let members = []
+  const members = []
 
   for (let id = first; id < next; id++) {
     const profile = (await api.query.members.memberProfile(id)) as Option<any>

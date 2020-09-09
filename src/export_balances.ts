@@ -86,8 +86,8 @@ async function main() {
   // Sum the total balances and filter out accounts with zero balance
   const exportedBalances = []
   let total = 0
-  for (let [account, balance_bn] of balances) {
-    const balance = balance_bn.toNumber()
+  for (const [account, balanceBN] of balances) {
+    const balance = balanceBN.toNumber()
     total += balance
     if (balance > 0) {
       exportedBalances.push({
@@ -196,7 +196,7 @@ async function enumerate_validator_accounts(
 
   // Get the nominators
   const getNominatorStashes = async (stashes: AccountId[]) => {
-    let stakers: string[] = []
+    const stakers: string[] = []
     for (let i = 0; i < stashes.length; i++) {
       ;(((await api.query.staking.stakers(
         stashes[i]

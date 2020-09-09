@@ -29,7 +29,7 @@ async function main() {
   const posts = await get_all_posts(api)
   const threads = await get_all_threads(api)
 
-  let forum_data = {
+  const forum_data = {
     categories: categories.map((category) => category.toHex()),
     posts: posts.map((post) => post.toHex()),
     threads: threads.map((thread) => thread.toHex()),
@@ -61,10 +61,10 @@ async function get_forum_checked_storage<T extends Codec>(
 }
 
 async function get_all_posts(api: ApiPromise) {
-  let first = 1
-  let next = ((await api.query.forum.nextPostId()) as PostId).toNumber()
+  const first = 1
+  const next = ((await api.query.forum.nextPostId()) as PostId).toNumber()
 
-  let posts = []
+  const posts = []
 
   for (let id = first; id < next; id++) {
     let post = (await get_forum_checked_storage<Post>(
@@ -97,10 +97,10 @@ async function get_all_posts(api: ApiPromise) {
 }
 
 async function get_all_categories(api: ApiPromise) {
-  let first = 1
-  let next = ((await api.query.forum.nextCategoryId()) as CategoryId).toNumber()
+  const first = 1
+  const next = ((await api.query.forum.nextCategoryId()) as CategoryId).toNumber()
 
-  let categories = []
+  const categories = []
 
   for (let id = first; id < next; id++) {
     let category = (await get_forum_checked_storage<Category>(
@@ -140,10 +140,10 @@ async function get_all_categories(api: ApiPromise) {
 }
 
 async function get_all_threads(api: ApiPromise) {
-  let first = 1
-  let next = ((await api.query.forum.nextThreadId()) as ThreadId).toNumber()
+  const first = 1
+  const next = ((await api.query.forum.nextThreadId()) as ThreadId).toNumber()
 
-  let threads = []
+  const threads = []
 
   for (let id = first; id < next; id++) {
     let thread = (await get_forum_checked_storage<Thread>(

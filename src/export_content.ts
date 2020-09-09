@@ -91,10 +91,10 @@ async function get_checked_map_value<T extends Codec>(
 }
 
 async function get_all_classes(api: ApiPromise) {
-  let first = 1
-  let next = ((await api.query.versionedStore.nextClassId()) as ClassId).toNumber()
+  const first = 1
+  const next = ((await api.query.versionedStore.nextClassId()) as ClassId).toNumber()
 
-  let values = []
+  const values = []
 
   for (let id = first; id < next; id++) {
     const clazz = (await get_checked_map_value<Class>(
@@ -126,7 +126,7 @@ async function get_all_entities(api: ApiPromise): Promise<ExportedEntities> {
   const entities: ExportedEntities = []
 
   for (let id = first; id < next; id++) {
-    let entity = (await get_checked_map_value<Entity>(
+    const entity = (await get_checked_map_value<Entity>(
       api,
       'versionedStore',
       'entityById',
