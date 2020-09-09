@@ -13,7 +13,8 @@ import { Option, Null, u128 } from '@polkadot/types/'
 import { AccountId, Balance, Hash } from '@polkadot/types/interfaces'
 import { Exposure } from '@polkadot/types/interfaces/staking'
 import { LinkedMap, SingleLinkedMapEntry } from './linkedMap'
-import { ProposalId, Proposal, ActiveStake } from '@joystream/types/proposals'
+import { ProposalId, Proposal } from '@joystream/types/proposals'
+import { ActiveStake } from './overrideTypes'
 import assert from 'assert'
 import { StakeId, Stake, StakedState } from '@joystream/types/stake'
 import { Worker, WorkerId } from '@joystream/types/working-group'
@@ -270,11 +271,13 @@ async function enumerate_proposal_stakes(
     if (maybeActiveStake.isNone) {
       continue
     }
+
     const activeStake = maybeActiveStake.unwrap()
     // having to use getField because ActiveStake constructor is not correctly defined?!
+    const stake_id = activeStake.getField('stakeId') as StakeId
     memberIdAndStakeId.push({
       member_id,
-      stake_id: activeStake.getField('stake_id') as StakeId,
+      stake_id,
     })
   }
 
@@ -290,8 +293,9 @@ async function increment_member_root_account_balances_from_stakes(
   for (let i = 0; i < stakes.length; i++) {
     const stake = stakes[i]
     const root_account = root_accounts.get(stake.member_id.toNumber())
-    if (!root_account) continue
-
+    // All role stakes must have been for members so there must be a root account
+    // in the root_accounts map
+    assert(root_account)
     const stakeEntry = await api.query.stake.stakes(stake.stake_id)
     const stakeInfo = new SingleLinkedMapEntry<StakeId, Stake>(
       StakeId,
@@ -302,6 +306,7 @@ async function increment_member_root_account_balances_from_stakes(
     if (stakeInfo.staking_status.type !== 'Staked') {
       continue
     }
+
     const staked_amount = (stakeInfo.staking_status.value as StakedState)
       .staked_amount
 

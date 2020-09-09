@@ -2,6 +2,8 @@
 
 import { ApiPromise, WsProvider } from '@polkadot/api'
 import { registerJoystreamTypes } from '@joystream/types'
+import { getTypeRegistry } from '@polkadot/types'
+import { ActiveStake } from './overrideTypes'
 
 export default async function create_api() {
   // Get URL to websocket endpoint from environment or connect to local node by default
@@ -13,8 +15,14 @@ export default async function create_api() {
   // register types before creating the api
   registerJoystreamTypes()
 
+  // override incorrectly registerd type: ActiveStake
+  const typeRegistry = getTypeRegistry()
+  typeRegistry.register({
+    ActiveStake,
+  })
+
   // Create the API and wait until ready
-  let api = await ApiPromise.create({ provider })
+  const api = await ApiPromise.create({ provider })
   await api.isReady
 
   return api
