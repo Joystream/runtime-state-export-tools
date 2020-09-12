@@ -23,7 +23,13 @@ const MEDIA_OBJECT_SCHEMA_CONTENT_ID_IN_CLASS_INDEX = 0
 
 // Entity Ids of 'Video' entities we don't wish to export
 const EXCLUDED_VIDEOS: Set<number> = new Set([
-  773, 769, 765, 761, 757, 753, 751
+  773,
+  769,
+  765,
+  761,
+  757,
+  753,
+  751,
 ])
 
 type ExportedEntities = Array<{
