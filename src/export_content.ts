@@ -22,7 +22,9 @@ const VIDEO_SCHEMA_MEDIA_OBJECT_IN_CLASS_INDEX = 7
 const MEDIA_OBJECT_SCHEMA_CONTENT_ID_IN_CLASS_INDEX = 0
 
 // Entity Ids of 'Video' entities we don't wish to export
-const EXCLUDED_VIDEOS = [773, 769, 765, 761, 757, 753, 751]
+const EXCLUDED_VIDEOS: Set<number> = new Set([
+  773, 769, 765, 761, 757, 753, 751
+])
 
 type ExportedEntities = Array<{
   entity: Entity
@@ -124,6 +126,7 @@ async function get_all_entities(api: ApiPromise): Promise<ExportedEntities> {
   const first = 1
   const next = ((await api.query.versionedStore.nextEntityId()) as EntityId).toNumber()
   const entities: ExportedEntities = []
+  const entityIdsToDrop = new Set<number>()
 
   for (let id = first; id < next; id++) {
     const entity = (await get_checked_map_value<Entity>(
@@ -147,7 +150,23 @@ async function get_all_entities(api: ApiPromise): Promise<ExportedEntities> {
         ).value
       : undefined
 
-    if (entity.class_id.eq(VIDEO_CLASS_ID) && EXCLUDED_VIDEOS.includes(id)) {
+    if (entity.class_id.eq(VIDEO_CLASS_ID) && EXCLUDED_VIDEOS.has(id)) {
+      // get related entities to drop
+      if (entity.entity_values.length) {
+        const mediaObjectProperty =
+          entity.entity_values[VIDEO_SCHEMA_MEDIA_OBJECT_IN_CLASS_INDEX]
+        if (
+          mediaObjectProperty &&
+          mediaObjectProperty.in_class_index.eq(
+            VIDEO_SCHEMA_MEDIA_OBJECT_IN_CLASS_INDEX
+          )
+        ) {
+          entityIdsToDrop.add(
+            (mediaObjectProperty.value.value as EntityId).toNumber()
+          )
+        }
+      }
+
       continue
     }
 
@@ -157,60 +176,36 @@ async function get_all_entities(api: ApiPromise): Promise<ExportedEntities> {
     })
   }
 
-  return entities
+  return entities.filter(
+    ({ entity }) => !entityIdsToDrop.has(entity.id.toNumber())
+  )
 }
 
 async function get_data_directory_from_entities(
   api: ApiPromise,
   entities: Entity[]
 ) {
-  const videoEntities = entities.filter(
-    (entity) =>
-      entity.class_id.eq(VIDEO_CLASS_ID) &&
-      !EXCLUDED_VIDEOS.includes(entity.id.toNumber())
-  )
+  const contentIds = new Set<string>()
 
-  const mediaObjectEntityIds = videoEntities
-    .filter((entity) => entity.entity_values.length)
-    .map((entity) => {
+  entities
+    .filter((entity) => entity.class_id.eq(MEDIA_OBJECT_CLASS_ID))
+    .forEach((entity) => {
       const property =
-        entity.entity_values[VIDEO_SCHEMA_MEDIA_OBJECT_IN_CLASS_INDEX]
+        entity.entity_values[MEDIA_OBJECT_SCHEMA_CONTENT_ID_IN_CLASS_INDEX]
       assert(
         property &&
-          property.in_class_index.eq(VIDEO_SCHEMA_MEDIA_OBJECT_IN_CLASS_INDEX),
-        'Unexpected Video Schema'
+          property.in_class_index.eq(
+            MEDIA_OBJECT_SCHEMA_CONTENT_ID_IN_CLASS_INDEX
+          ),
+        'Unexpected Media Object Schema'
       )
-      return property.value.value
+      contentIds.add(property.value.value.toString())
     })
-
-  const contentIds = mediaObjectEntityIds.map((entityId) => {
-    const entity = entities.find((entity) => entity.id.eq(entityId))
-    // Runtime protects against this invalid state..just sanity check
-    if (!entity) {
-      throw new Error('Referenced Entity Not Found')
-    }
-
-    if (!entity.class_id.eq(MEDIA_OBJECT_CLASS_ID)) {
-      throw new Error('Referenced Entity Is Not a Media Object Entity!')
-    }
-
-    const property =
-      entity.entity_values[MEDIA_OBJECT_SCHEMA_CONTENT_ID_IN_CLASS_INDEX]
-    assert(
-      property &&
-        property.in_class_index.eq(
-          MEDIA_OBJECT_SCHEMA_CONTENT_ID_IN_CLASS_INDEX
-        ),
-      'Unexpected Media Object Schema'
-    )
-    const contentId = property.value.value.toString()
-    return ContentId.decode(contentId)
-  })
 
   const dataDirectory = []
 
-  for (let i = 0; i < contentIds.length; i++) {
-    const content_id = contentIds[i]
+  for (const encodedContentId of contentIds) {
+    const content_id = ContentId.decode(encodedContentId)
     const data_object = (await api.query.dataDirectory.dataObjectByContentId(
       content_id
     )) as Option<DataObject>
