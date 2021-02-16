@@ -1,5 +1,6 @@
 {
   "exclude": [
+    "node_modules/**"
   ],
   "compilerOptions": {
     /* Basic Options */
@@ -64,10 +65,10 @@
     "baseUrl": ".",
     "paths": {
     },
-    "typeRoots": [
-      "./node_modules/@polkadot/ts",
-      "./node_modules/@types"
-    ]
+    // "typeRoots": [
+    //   "./node_modules/@polkadot/ts",
+    //   "./node_modules/@types"
+    // ]
   },
   "include": [
     "src/*.ts"
