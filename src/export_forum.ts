@@ -11,8 +11,8 @@ import {
   OptionChildPositionInParentCategory,
   ModerationAction,
 } from '@joystream/types/forum'
-import { Codec, CodecArg } from '@polkadot/types/types'
-import { Text, bool as Bool, u32, Option, u64 } from '@polkadot/types'
+import { Codec } from '@polkadot/types/types'
+import { Text, bool as Bool, Option } from '@polkadot/types'
 
 // Note: Codec.toHex() re-encodes the value, based on how the type
 // was registered. It does NOT produce the same value read from storage
@@ -20,73 +20,90 @@ import { Text, bool as Bool, u32, Option, u64 } from '@polkadot/types'
 // Also toJSON() behaves similarly., and special case for types that are registered Vec<u8> vs Text
 // `Vec<u8>` produces a json array of numbers (byte array), `Text` produces a json string
 
+enum Maps {
+  PostById = 'posts',
+  CategoryById = 'categories',
+  ThreadById = 'threads',
+}
+
+const mapName = {
+  [Maps.PostById]: 'postById',
+  [Maps.CategoryById]: 'categoryById',
+  [Maps.ThreadById]: 'threadById',
+} as const
+
 main()
 
 async function main() {
   const api = await create_api()
 
-  const categories = await get_all_categories(api)
-  const posts = await get_all_posts(api)
-  const threads = await get_all_threads(api)
+  const categories = await getAllCategories(api)
+  const posts = await getAllPosts(api)
+  const threads = await getAllThreads(api)
 
-  const forum_data = {
+  const forumData = {
     categories: categories.map((category) => category.toHex()),
     posts: posts.map((post) => post.toHex()),
     threads: threads.map((thread) => thread.toHex()),
   }
 
-  console.log(JSON.stringify(forum_data))
+  console.error('Category count', categories.length)
+  console.error('Thread count', threads.length)
+  console.error('Post count', posts.length)
+
+  console.log(JSON.stringify(forumData))
 
   api.disconnect()
 }
 
 // Fetches a value from map directly from storage and through the query api.
-// It ensures the value actually exists in the map
-async function get_forum_checked_storage<T extends Codec>(
+// It ensures the value actually exists in the map.
+// Note this is old technique before keys()/entries() helper methods were added.
+async function getForumCheckedStorage<T extends Codec>(
   api: ApiPromise,
-  map: string,
-  id: CodecArg
+  map: Maps,
+  id: number // PostId | ThreadId | CategoryId
 ): Promise<T> {
-  const key = api.query.forum[map].key(id)
-  const raw_value = ((await api.rpc.state.getStorage(
-    key
-  )) as unknown) as Option<T>
+  const key = api.query.forum[mapName[map]].key(id)
+  const rawValue = ((await api.rpc.state.getStorage(key)) as unknown) as Option<
+    T
+  >
 
-  if (raw_value.isNone) {
+  if (rawValue.isNone) {
     console.error(`Error: value does not exits: ${map} key: ${id}`)
     process.exit(-1)
   } else {
-    return (await api.query.forum[map](id)) as T
+    return ((await api.query.forum[mapName[map]](id)) as unknown) as T
   }
 }
 
-async function get_all_posts(api: ApiPromise) {
+async function getAllPosts(api: ApiPromise) {
   const first = 1
   const next = ((await api.query.forum.nextPostId()) as PostId).toNumber()
 
   const posts = []
 
   for (let id = first; id < next; id++) {
-    let post = (await get_forum_checked_storage<Post>(
+    let post = (await getForumCheckedStorage<Post>(
       api,
-      'postById',
+      Maps.PostById,
       id
     )) as Post
 
     // Transformation to a value that makes sense in a new chain.
-    post = new Post({
+    post = new Post(api.registry, {
       id: post.id,
       thread_id: post.thread_id,
       nr_in_thread: post.nr_in_thread,
-      current_text: new Text(post.current_text),
-      moderation: moderationActionAtBlockOne(post.moderation),
+      current_text: api.createType('Text', post.current_text),
+      moderation: moderationActionAtBlockOne(api, post.moderation),
       // No reason to preserve change history
-      text_change_history: new VecPostTextChange(),
+      text_change_history: new VecPostTextChange(api.registry),
       author_id: post.author_id,
-      created_at: new BlockAndTime({
+      created_at: new BlockAndTime(api.registry, {
         // old block number on a new chain doesn't make any sense
-        block: new u32(1),
-        time: new u64(post.created_at.momentDate.valueOf()),
+        block: api.createType('u32', 1),
+        time: api.createType('u64', post.created_at.momentDate.valueOf()),
       }),
     })
 
@@ -96,38 +113,44 @@ async function get_all_posts(api: ApiPromise) {
   return posts
 }
 
-async function get_all_categories(api: ApiPromise) {
+async function getAllCategories(api: ApiPromise) {
   const first = 1
   const next = ((await api.query.forum.nextCategoryId()) as CategoryId).toNumber()
 
   const categories = []
 
   for (let id = first; id < next; id++) {
-    let category = (await get_forum_checked_storage<Category>(
+    let category = (await getForumCheckedStorage<Category>(
       api,
-      'categoryById',
+      Maps.CategoryById,
       id
     )) as Category
 
-    category = new Category({
-      id: new CategoryId(category.id),
-      title: new Text(category.title),
-      description: new Text(category.description),
-      created_at: new BlockAndTime({
+    category = new Category(api.registry, {
+      id: category.id,
+      title: new Text(api.registry, category.title),
+      description: new Text(api.registry, category.description),
+      created_at: new BlockAndTime(api.registry, {
         // old block number on a new chain doesn't make any sense
-        block: new u32(1),
-        time: new u64(category.created_at.momentDate.valueOf()),
+        block: api.createType('u32', 1),
+        time: api.createType('u64', category.created_at.momentDate.valueOf()),
       }),
-      deleted: new Bool(category.deleted),
-      archived: new Bool(category.archived),
-      num_direct_subcategories: new u32(category.num_direct_subcategories),
-      num_direct_unmoderated_threads: new u32(
+      deleted: new Bool(api.registry, category.deleted),
+      archived: new Bool(api.registry, category.archived),
+      num_direct_subcategories: api.createType(
+        'u32',
+        category.num_direct_subcategories
+      ),
+      num_direct_unmoderated_threads: api.createType(
+        'u32',
         category.num_direct_unmoderated_threads
       ),
-      num_direct_moderated_threads: new u32(
+      num_direct_moderated_threads: api.createType(
+        'u32',
         category.num_direct_moderated_threads
       ),
       position_in_parent_category: new OptionChildPositionInParentCategory(
+        api.registry,
         category.position_in_parent_category
       ),
       moderator_id: category.moderator_id,
@@ -139,31 +162,34 @@ async function get_all_categories(api: ApiPromise) {
   return categories
 }
 
-async function get_all_threads(api: ApiPromise) {
+async function getAllThreads(api: ApiPromise) {
   const first = 1
   const next = ((await api.query.forum.nextThreadId()) as ThreadId).toNumber()
 
   const threads = []
 
   for (let id = first; id < next; id++) {
-    let thread = (await get_forum_checked_storage<Thread>(
+    let thread = (await getForumCheckedStorage<Thread>(
       api,
-      'threadById',
+      Maps.ThreadById,
       id
     )) as Thread
 
-    thread = new Thread({
-      id: new ThreadId(thread.id),
-      title: new Text(thread.title),
-      category_id: new CategoryId(thread.category_id),
-      nr_in_category: new u32(thread.nr_in_category),
-      moderation: moderationActionAtBlockOne(thread.moderation),
-      num_unmoderated_posts: new u32(thread.num_unmoderated_posts),
-      num_moderated_posts: new u32(thread.num_moderated_posts),
-      created_at: new BlockAndTime({
+    thread = new Thread(api.registry, {
+      id: thread.id,
+      title: new Text(api.registry, thread.title),
+      category_id: thread.category_id,
+      nr_in_category: api.createType('u32', thread.nr_in_category),
+      moderation: moderationActionAtBlockOne(api, thread.moderation),
+      num_unmoderated_posts: api.createType(
+        'u32',
+        thread.num_unmoderated_posts
+      ),
+      num_moderated_posts: api.createType('u32', thread.num_moderated_posts),
+      created_at: new BlockAndTime(api.registry, {
         // old block number on a new chain doesn't make any sense
-        block: new u32(1),
-        time: new u64(thread.created_at.momentDate.valueOf()),
+        block: api.createType('u32', 1),
+        time: api.createType('u64', thread.created_at.momentDate.valueOf()),
       }),
       author_id: thread.author_id,
     })
@@ -175,19 +201,21 @@ async function get_all_threads(api: ApiPromise) {
 }
 
 function moderationActionAtBlockOne(
-  action: ModerationAction | undefined
+  api: ApiPromise,
+  action: ModerationAction | null
 ): OptionModerationAction {
   if (!action) {
-    return new OptionModerationAction()
+    return new OptionModerationAction(api.registry)
   } else {
     return new OptionModerationAction(
-      new ModerationAction({
-        moderated_at: new BlockAndTime({
-          block: new u32(1),
-          time: new u64(action.moderated_at.momentDate.valueOf()),
+      api.registry,
+      new ModerationAction(api.registry, {
+        moderated_at: new BlockAndTime(api.registry, {
+          block: api.createType('u32', 1),
+          time: api.createType('u64', action.moderated_at.momentDate.valueOf()),
         }),
         moderator_id: action.moderator_id,
-        rationale: new Text(action.rationale),
+        rationale: new Text(api.registry, action.rationale),
       })
     )
   }

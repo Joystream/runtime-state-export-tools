@@ -8,6 +8,5 @@ Scripts to export state from a running chain over rpc.
 yarn
 node lib/export-members > members.json
 node lib/export-forum > forum.json
-node lib/export-content > content.json
 node lib/export-balances > balances.json
 ```
