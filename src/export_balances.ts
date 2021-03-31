@@ -1,64 +1,53 @@
 import create_api from './api'
 import { ApiPromise } from '@polkadot/api'
-import {
-  Profile,
-  MemberId,
-  ActorInRole,
-  Role,
-  ActorId,
-  RoleKeys,
-} from '@joystream/types/members'
+import { MemberId, Membership } from '@joystream/types/members'
 import { Seat, SealedVote } from '@joystream/types/council'
-import { Option, Null, u128 } from '@polkadot/types/'
+import { Option } from '@polkadot/types/'
 import { AccountId, Balance, Hash } from '@polkadot/types/interfaces'
-import { Exposure } from '@polkadot/types/interfaces/staking'
-import { LinkedMap, SingleLinkedMapEntry } from './linkedMap'
-import { ProposalId, Proposal } from '@joystream/types/proposals'
-import { ActiveStake } from './overrideTypes'
+import { ProposalId, ActiveStake } from '@joystream/types/proposals'
 import assert from 'assert'
-import { StakeId, Stake, StakedState } from '@joystream/types/stake'
-import { Worker, WorkerId } from '@joystream/types/working-group'
-import {
-  Curator,
-  CuratorId,
-  Lead,
-  LeadId,
-} from '@joystream/types/content-working-group'
-import {
-  RewardRelationshipId,
-  RewardRelationship,
-} from '@joystream/types/recurring-rewards'
+import { StakeId, StakedState } from '@joystream/types/stake'
 
 type MemberAndStake = {
-  member_id: MemberId
-  stake_id: StakeId
+  memberId: MemberId
+  stakeId: StakeId
 }
+
+enum WorkingGroups {
+  ContentCurators = 'curators',
+  StorageProviders = 'storageProviders',
+}
+
+const apiModuleByGroup = {
+  [WorkingGroups.StorageProviders]: 'storageWorkingGroup',
+  [WorkingGroups.ContentCurators]: 'contentDirectoryWorkingGroup',
+} as const
 
 main()
 
 async function main() {
   const api = await create_api()
 
-  const memberAccounts = await enumerate_member_accounts(api)
-  const councilAccounts = await enumerate_council_participant_accounts(api)
-  const validatorAccounts = await enumerate_validator_accounts(api)
-  const storageWorkerAccounts = await enumerate_storage_working_group_worker_accounts_and_stakes(
-    api
+  const memberAccounts = await enumerateMemberAccounts(api)
+  const councilAccounts = await enumerateCouncilParticipantAccounts(api)
+  const validatorAccounts = await enumerateValidatorAccounts(api)
+  const storageWorkerAccounts = await enumerateWorkingGroupWorkerAccountsAndStakes(
+    api,
+    WorkingGroups.StorageProviders
   )
-  const contentWgWorkerAccounts = await enumerate_content_wg_accounts_and_stakes(
-    api
+  const contentWorkerAccounts = await enumerateWorkingGroupWorkerAccountsAndStakes(
+    api,
+    WorkingGroups.ContentCurators
   )
-  const rewardedAccounts = await enumerate_rewarded_accounts(api)
-
-  await enumerate_content_wg_accounts_and_stakes(api)
+  const rewardedAccounts = await enumerateRewardedAccounts(api)
 
   const allAccounts = new Set([
-    ...memberAccounts.root_accounts.values(),
-    ...memberAccounts.controller_accounts.values(),
+    ...memberAccounts.rootAccounts.values(),
+    ...memberAccounts.controllerAccounts.values(),
     ...councilAccounts,
     ...validatorAccounts,
     ...storageWorkerAccounts.roleAccounts,
-    ...contentWgWorkerAccounts.roleAccounts,
+    ...contentWorkerAccounts.roleAccounts,
     ...rewardedAccounts,
     '5Co9fgda84MeR4SLwfE8EZGXKESkbtf4qAnrfVDTKsPK4qAL',
     '5CJzTaCp5fuqG7NdJQ6oUCwdmFHKichew8w4RZ3zFHM8qSe6',
@@ -66,21 +55,21 @@ async function main() {
   ])
 
   // Get initial balances of accounts (free + reserved)
-  const balances = await get_total_balances(api, allAccounts)
+  const balances = await getTotalBalances(api, allAccounts)
 
   // Any stakes behind active proposals
-  const proposalStakes = await enumerate_proposal_stakes(api)
+  const proposalStakes = await enumerateProposalStakes(api)
 
   // For every stake id (associated with a member id) increment the
   // member's root account with the staked amount
-  increment_member_root_account_balances_from_stakes(
+  incrementMemberRootAccountBalancesFromStakes(
     api,
     [
       ...proposalStakes,
       ...storageWorkerAccounts.stakes,
-      ...contentWgWorkerAccounts.stakes,
+      ...contentWorkerAccounts.stakes,
     ],
-    memberAccounts.root_accounts,
+    memberAccounts.rootAccounts,
     balances
   )
 
@@ -116,19 +105,16 @@ async function main() {
   api.disconnect()
 }
 
-// get sum of freebalance and reserved balances of accounts.
+// get sum of free balance and reserved balance of accounts.
 // council participation stakes are 'reserved balances'. So this method can be used to get
 // account balances of council members and backers account balances.
-async function get_total_balances(api: ApiPromise, accounts: Set<string>) {
+async function getTotalBalances(api: ApiPromise, accounts: Set<string>) {
   const balances = new Map<string, Balance>()
 
   for (const account of accounts) {
-    const free: Balance = (await api.query.balances.freeBalance(
-      account
-    )) as Balance
-    const reserved: Balance = (await api.query.balances.reservedBalance(
-      account
-    )) as Balance
+    const free: Balance = (await api.derive.balances.all(account)).freeBalance
+    const reserved: Balance = (await api.derive.balances.all(account))
+      .reservedBalance
     balances.set(account, free.add(reserved) as Balance)
   }
 
@@ -136,28 +122,25 @@ async function get_total_balances(api: ApiPromise, accounts: Set<string>) {
 }
 
 // enumerate the member root and controller accounts into a unique set
-async function enumerate_member_accounts(api: ApiPromise) {
+async function enumerateMemberAccounts(api: ApiPromise) {
   const first = 0
-  const next = ((await api.query.members.membersCreated()) as MemberId).toNumber()
+  const next = ((await api.query.members.nextMemberId()) as MemberId).toNumber()
 
-  let root_accounts = new Map<number, string>()
-  let controller_accounts = new Map<number, string>()
+  const rootAccounts = new Map<number, string>()
+  const controllerAccounts = new Map<number, string>()
 
   for (let id = first; id < next; id++) {
-    const profile = (await api.query.members.memberProfile(id)) as Option<
-      Profile
-    >
+    const membership = (await api.query.members.membershipById(
+      id
+    )) as Membership
 
-    if (profile.isSome) {
-      const p = profile.unwrap()
-      root_accounts.set(id, p.root_account.toString())
-      controller_accounts.set(id, p.controller_account.toString())
-    }
+    rootAccounts.set(id, membership.root_account.toString())
+    controllerAccounts.set(id, membership.controller_account.toString())
   }
 
   return {
-    root_accounts,
-    controller_accounts,
+    rootAccounts,
+    controllerAccounts,
   }
 }
 
@@ -166,7 +149,7 @@ async function enumerate_member_accounts(api: ApiPromise) {
 // In the odd chance that a member changes their role or member account during
 // an election or while in an active council
 // we we need to capture the account id this way.
-async function enumerate_council_participant_accounts(
+async function enumerateCouncilParticipantAccounts(
   api: ApiPromise
 ): Promise<Set<string>> {
   const accounts = new Set<string>()
@@ -179,13 +162,13 @@ async function enumerate_council_participant_accounts(
 
   // If there is an active election include the voters account ids
   const hashes = ((await api.query.councilElection.commitments()) as unknown) as Hash[]
-  const sealed_votes: SealedVote[] = await Promise.all(
+  const sealedVotes: SealedVote[] = await Promise.all(
     hashes.map(
       async (hash) =>
         ((await api.query.councilElection.votes(hash)) as unknown) as SealedVote
     )
   )
-  sealed_votes.forEach((vote) => accounts.add(vote.voter.toString()))
+  sealedVotes.forEach((vote) => accounts.add(vote.voter.toString()))
 
   const applicants = ((await api.query.councilElection.applicants()) as unknown) as AccountId[]
   applicants.forEach((account) => accounts.add(account.toString()))
@@ -193,30 +176,29 @@ async function enumerate_council_participant_accounts(
   return accounts
 }
 
-async function enumerate_validator_accounts(
+async function enumerateValidatorAccounts(
   api: ApiPromise
 ): Promise<Set<string>> {
   const validators = await api.derive.staking.validators()
+  const currentEra = (await api.query.staking.currentEra()).unwrap()
 
   // Get the nominators
   const getNominatorStashes = async (stashes: AccountId[]) => {
     const stakers: string[] = []
     for (let i = 0; i < stashes.length; i++) {
-      ;(((await api.query.staking.stakers(
-        stashes[i]
-      )) as unknown) as Exposure).others.forEach((staker) =>
-        stakers.push(staker.who.toString())
-      )
+      ;(
+        await api.query.staking.erasStakers(currentEra, stashes[i])
+      ).others.forEach((staker) => stakers.push(staker.who.toString()))
     }
     return stakers
   }
 
-  const currentNominators = await getNominatorStashes(validators.currentElected)
-  const waitingNominators = await getNominatorStashes(validators.validators)
-  const currentValidators = validators.currentElected.map((stash) =>
+  const currentNominators = await getNominatorStashes(validators.validators)
+  const waitingNominators = await getNominatorStashes(validators.nextElected)
+  const currentValidators = validators.validators.map((stash) =>
     stash.toString()
   )
-  const waitingValidators = validators.validators.map((stash) =>
+  const waitingValidators = validators.nextElected.map((stash) =>
     stash.toString()
   )
 
@@ -241,30 +223,20 @@ async function enumerate_validator_accounts(
   return new Set([...stashes, ...controllers])
 }
 
-async function enumerate_proposal_stakes(
+async function enumerateProposalStakes(
   api: ApiPromise
 ): Promise<Array<MemberAndStake>> {
   const memberIdAndStakeId = []
 
-  const activeProposalIdsMap = await api.query.proposalsEngine.activeProposalIds()
-  const pendingExecutionProposalIdsMap = await api.query.proposalsEngine.pendingExecutionProposalIds()
-
-  const activeIds = new LinkedMap(ProposalId, Null, activeProposalIdsMap)
-    .linked_keys
-  const pendingIds = new LinkedMap(
-    ProposalId,
-    Null,
-    pendingExecutionProposalIdsMap
-  ).linked_keys
+  const activeIds = await api.query.proposalsEngine.activeProposalIds.keys()
+  const pendingIds = await api.query.proposalsEngine.pendingExecutionProposalIds.keys()
 
   const allIds = activeIds.concat(pendingIds)
 
   for (let i = 0; i < allIds.length; i++) {
-    const id = allIds[i]
-    const proposal = ((await api.query.proposalsEngine.proposals(
-      id
-    )) as unknown) as Proposal
-    const member_id = proposal.proposerId
+    const id = allIds[i].args[0] as ProposalId
+    const proposal = await api.query.proposalsEngine.proposals(id)
+    const memberId = proposal.proposerId
     assert(proposal.status.type === 'Active')
     const maybeActiveStake = proposal.status.value as Option<ActiveStake>
 
@@ -273,63 +245,55 @@ async function enumerate_proposal_stakes(
     }
 
     const activeStake = maybeActiveStake.unwrap()
-    // having to use getField because ActiveStake constructor is not correctly defined?!
-    const stake_id = activeStake.getField('stakeId') as StakeId
+    const stakeId = activeStake.stake_id
     memberIdAndStakeId.push({
-      member_id,
-      stake_id,
+      memberId,
+      stakeId,
     })
   }
 
   return memberIdAndStakeId
 }
 
-async function increment_member_root_account_balances_from_stakes(
+async function incrementMemberRootAccountBalancesFromStakes(
   api: ApiPromise,
   stakes: Array<MemberAndStake>,
-  root_accounts: Map<number, string>,
+  rootAccounts: Map<number, string>,
   balances: Map<string, Balance>
 ) {
   for (let i = 0; i < stakes.length; i++) {
     const stake = stakes[i]
-    const root_account = root_accounts.get(stake.member_id.toNumber())
+    const rootAccount = rootAccounts.get(stake.memberId.toNumber())
     // All role stakes must have been for members so there must be a root account
-    // in the root_accounts map
-    assert(root_account)
-    const stakeEntry = await api.query.stake.stakes(stake.stake_id)
-    const stakeInfo = new SingleLinkedMapEntry<StakeId, Stake>(
-      StakeId,
-      Stake,
-      stakeEntry
-    ).value
+    // in the rootAccounts map
+    assert(rootAccount)
+    const stakeInfo = await api.query.stake.stakes(stake.stakeId)
 
     if (stakeInfo.staking_status.type !== 'Staked') {
       continue
     }
 
-    const staked_amount = (stakeInfo.staking_status.value as StakedState)
+    const stakedAmount = (stakeInfo.staking_status.value as StakedState)
       .staked_amount
 
-    const balance = balances.get(root_account) || new u128(0)
-    balances.set(root_account, balance.add(staked_amount) as Balance)
+    const balance = balances.get(rootAccount) || api.createType('u128', 0)
+    balances.set(rootAccount, balance.add(stakedAmount) as Balance)
   }
 }
 
 // Active worker role accounts and stakes. We don't check stakes in applications
-async function enumerate_storage_working_group_worker_accounts_and_stakes(
-  api: ApiPromise
+async function enumerateWorkingGroupWorkerAccountsAndStakes(
+  api: ApiPromise,
+  group: WorkingGroups
 ) {
-  const workers = new LinkedMap(
-    WorkerId,
-    Worker,
-    await api.query.storageWorkingGroup.workerById()
-  ).linked_values
+  const module = apiModuleByGroup[group]
+  const workers = await api.query[module].workerById.entries()
 
   const roleAccounts = new Set<string>()
   const stakes = []
 
   for (let i = 0; i < workers.length; i++) {
-    const worker = workers[i]
+    const worker = workers[i][1]
 
     roleAccounts.add(worker.role_account_id.toString())
 
@@ -338,8 +302,8 @@ async function enumerate_storage_working_group_worker_accounts_and_stakes(
     const stakeProfile = worker.role_stake_profile.unwrap()
 
     stakes.push({
-      member_id: worker.member_id,
-      stake_id: stakeProfile.stake_id,
+      memberId: worker.member_id,
+      stakeId: stakeProfile.stake_id,
     })
   }
 
@@ -349,86 +313,15 @@ async function enumerate_storage_working_group_worker_accounts_and_stakes(
   }
 }
 
-async function enumerate_content_wg_accounts_and_stakes(api: ApiPromise) {
-  const roleAccounts = new Set<string>()
-  const stakes = []
-
-  const curatorsMap = new LinkedMap(
-    CuratorId,
-    Curator,
-    await api.query.contentWorkingGroup.curatorById()
-  )
-
-  for (let i = 0; i < curatorsMap.linked_values.length; i++) {
-    const curator = curatorsMap.linked_values[i]
-
-    roleAccounts.add(curator.role_account_id.toString())
-
-    if (curator.role_stake_profile.isNone) continue
-
-    const stakeProfile = curator.role_stake_profile.unwrap()
-
-    stakes.push({
-      member_id: await memberIdFromCuratorId(api, curatorsMap.linked_keys[i]),
-      stake_id: stakeProfile.stake_id,
-    })
-  }
-
-  // lead role account
-  const maybeLeadId = ((await api.query.contentWorkingGroup.currentLeadId()) as unknown) as Option<
-    LeadId
-  >
-  if (maybeLeadId.isSome) {
-    const lead = new SingleLinkedMapEntry(
-      LeadId,
-      Lead,
-      await api.query.contentWorkingGroup.leadById(maybeLeadId.unwrap())
-    ).value
-
-    roleAccounts.add(lead.role_account.toString())
-  }
-
-  return {
-    roleAccounts,
-    stakes,
-  }
-}
-
-// From pioneer transport
-async function memberIdFromRoleAndActorId(
-  api: ApiPromise,
-  role: Role,
-  id: ActorId
-): Promise<MemberId> {
-  const memberId = (await api.query.members.membershipIdByActorInRole(
-    new ActorInRole({
-      role: role,
-      actor_id: id,
-    })
-  )) as MemberId
-
-  return memberId
-}
-
-function memberIdFromCuratorId(
-  api: ApiPromise,
-  curatorId: CuratorId
-): Promise<MemberId> {
-  return memberIdFromRoleAndActorId(api, new Role(RoleKeys.Curator), curatorId)
-}
-
-async function enumerate_rewarded_accounts(api: ApiPromise) {
-  const rewards = new LinkedMap(
-    RewardRelationshipId,
-    RewardRelationship,
-    await api.query.recurringRewards.rewardRelationships()
-  ).linked_values
+async function enumerateRewardedAccounts(api: ApiPromise) {
+  const relationships = await api.query.recurringRewards.rewardRelationships.entries()
 
   const accounts = new Set<string>()
 
-  rewards.forEach((reward) =>
-    accounts.add(reward.getField('account').toString())
-  )
+  relationships.forEach((relationshipEntry) => {
+    const relationship = relationshipEntry[1]
+    accounts.add(relationship.getField('account').toString())
+  })
 
   return accounts
 }
