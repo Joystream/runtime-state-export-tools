@@ -1,3 +1,8 @@
+/*
+TODO: resolve error before uncommenting
+:646:16 - error TS2352: Conversion of type 'AccountId[]' to type 'Vec<StakingLedger>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+
+
 import create_api from './api'
 import { ApiPromise } from '@polkadot/api'
 import { MemberId, Membership } from '@joystream/types/members'
@@ -756,3 +761,4 @@ async function enumerateRewardedAccounts(api: ApiPromise) {
 
   return accounts
 }
+*/

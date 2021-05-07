@@ -7,6 +7,9 @@ export default async function createApi() {
   // Get URL to websocket endpoint from environment or connect to local node by default
   const WS_URL = process.env.WS_URL || 'ws://127.0.0.1:9944'
 
+  // explicitely state what RPC we are connecting to
+  console.log('Connecting to RPC at: ' + WS_URL)
+
   // Initialise the provider
   const provider = new WsProvider(WS_URL)
 
