@@ -30,7 +30,7 @@ async function getAllMembers(api: ApiPromise): Promise<any[]> {
       handle: p.handle,
       avatar_uri: p.avatar_uri,
       about: p.about,
-      registered_at_time: p.registered_at_time,
+      registered_at_time: p.registered_at_time.toNumber(),
     })
   }
 
