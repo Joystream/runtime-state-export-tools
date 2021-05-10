@@ -1,5 +1,7 @@
 import createApi from './api'
 import { Worker, WorkerId } from '@joystream/types/working-group'
+import { StorageKey } from '@polkadot/types';
+import { AnyTuple } from '@polkadot/types/types';
 
 main()
 
@@ -17,17 +19,19 @@ async function main() {
 
 interface WorkingGroup {
   nextWorkerId: () => Promise<WorkerId>
-  workerById: (id: number) => Promise<Worker>
+  workerById: {
+    entries: () => Promise<[StorageKey<AnyTuple>, Worker][]> // working group entries
+  }
 }
 
 async function getAllWorkers(workingGroupApi: WorkingGroup): Promise<any[]> {
-  const next = ((await workingGroupApi.nextWorkerId()) as WorkerId).toNumber()
-
-  const workers = []
-  for (let id = 0; id < next; id++) {
-    const rawWorker = (await workingGroupApi.workerById(id)) as Worker
+  const entries = await workingGroupApi.workerById.entries()
+  const workers = [] as any[]
+  for (const [storageKey, rawWorker] of entries) {
+    const workerId = (storageKey.args[0] as any).toNumber()
 
     workers.push({
+      id: workerId,
       member_id: rawWorker.member_id,
       reward_relationship: rawWorker.reward_relationship,
       role_account_id: rawWorker.role_account_id,
