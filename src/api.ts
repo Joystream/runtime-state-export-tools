@@ -8,7 +8,7 @@ export default async function createApi() {
   const WS_URL = process.env.WS_URL || 'ws://127.0.0.1:9944'
 
   // explicitely state what RPC we are connecting to
-  console.log('Connecting to RPC at: ' + WS_URL)
+  console.error('Connecting to RPC at: ' + WS_URL)
 
   // Initialise the provider
   const provider = new WsProvider(WS_URL)
