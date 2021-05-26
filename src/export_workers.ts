@@ -22,11 +22,12 @@ async function main() {
   const hash = process.env.AT_BLOCK_NUMBER
     ? await api.rpc.chain.getBlockHash(blockNumner)
     : undefined
+  const now = new Date()
 
   // get results for all relevant groups
   const result = {
-    storage: await getAllWorkers(api, WorkingGroups.Storage, hash),
-    gateway: await getAllWorkers(api, WorkingGroups.Gateway, hash),
+    storage: await getAllWorkers(api, WorkingGroups.Storage, hash, now),
+    gateway: await getAllWorkers(api, WorkingGroups.Gateway, hash, now),
   }
 
   // output results
@@ -40,7 +41,8 @@ async function main() {
 async function getAllWorkers(
   api: ApiPromise,
   group: WorkingGroups,
-  hash: CodecHash | undefined
+  hash: CodecHash | undefined,
+  now: Date,
 ): Promise<any[]> {
   // get working group entries
   const entries = await (hash
@@ -59,6 +61,9 @@ async function getAllWorkers(
       reward_relationship: rawWorker.reward_relationship,
       role_account_id: rawWorker.role_account_id,
       role_stake_profile: rawWorker.role_stake_profile,
+
+      // set time of running this script as created_at
+      created_at: now,
     })
   }
 
