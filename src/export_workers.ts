@@ -42,7 +42,7 @@ async function getAllWorkers(
   api: ApiPromise,
   group: WorkingGroups,
   hash: CodecHash | undefined,
-  now: Date,
+  now: Date
 ): Promise<any[]> {
   // get working group entries
   const entries = await (hash
