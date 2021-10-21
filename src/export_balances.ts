@@ -1,14 +1,14 @@
-/*
-TODO: resolve error before uncommenting
-:646:16 - error TS2352: Conversion of type 'AccountId[]' to type 'Vec<StakingLedger>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
-
-
 import create_api from './api'
 import { ApiPromise } from '@polkadot/api'
 import { MemberId, Membership } from '@joystream/types/members'
 import { Seat, SealedVote } from '@joystream/types/council'
 import { Option, Vec } from '@polkadot/types/'
-import { AccountId, Balance, Hash, StakingLedger } from '@polkadot/types/interfaces'
+import {
+  AccountId,
+  Balance,
+  Hash,
+  StakingLedger,
+} from '@polkadot/types/interfaces'
 import { ProposalId, ActiveStake } from '@joystream/types/proposals'
 import assert from 'assert'
 import { StakeId, StakedState } from '@joystream/types/stake'
@@ -519,7 +519,7 @@ async function main() {
     '5H3gAzCU7jATwcD47FpYwz1ZJbzE7qk9tBCVLa7HWpRpUWL1',
     '5GtnV5Ez7aL1JTLkWydnnG2C5H8FD5rXWesP6nwtDKRBfvbj',
     '5Ff9y3FDTCNReWM5M8FWXHRENPSTczLVmDUZfgTA9fSWaHVb',
-    '5EemRnubSCMs3fdjsxJbvLmAwFE2ocsaJUsqsmLDRUYxMxbi'
+    '5EemRnubSCMs3fdjsxJbvLmAwFE2ocsaJUsqsmLDRUYxMxbi',
   ])
 
   // Get initial balances of accounts (free + reserved)
@@ -647,13 +647,17 @@ async function enumerateCouncilParticipantAccounts(
 async function enumerateValidatorAccounts(
   api: ApiPromise
 ): Promise<Set<string>> {
-  const ctrl = (await api.query.staking.ledger.keys()).map(({args: [AccountId]}) => AccountId) as Vec<StakingLedger>
+  const ctrl = ((await api.query.staking.ledger.keys()).map(
+    ({ args: [id] }) => id
+  ) as unknown) as Vec<StakingLedger>
   const stashes = new Set<string>()
   const controllers = new Set<string>()
-  for (let address of ctrl) {
+  for (const address of ctrl) {
     const controller = address.toString()
     controllers.add(controller)
-    const stash = (await api.query.staking.ledger(controller) as Option<StakingLedger>).unwrap()
+    const stash = ((await api.query.staking.ledger(controller)) as Option<
+      StakingLedger
+    >).unwrap()
     stashes.add(stash.stash.toString())
   }
   return new Set([...stashes, ...controllers])
@@ -761,4 +765,3 @@ async function enumerateRewardedAccounts(api: ApiPromise) {
 
   return accounts
 }
-*/
