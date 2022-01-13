@@ -547,7 +547,7 @@ async function main() {
   for (const [account, balanceBN] of balances) {
     const balance = balanceBN.toNumber()
     total += balance
-    if (balance > 0) {
+    if (balance > 10) {
       exportedBalances.push({
         balance,
         account,
