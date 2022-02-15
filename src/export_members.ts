@@ -42,7 +42,6 @@ async function getAllMembers(
       root_account: p.root_account,
       controller_account: p.controller_account,
       handle: p.handle,
-      name: ``,
       avatar_uri: p.avatar_uri,
       about: p.about,
       registered_at_time: p.registered_at_time.toNumber(),
