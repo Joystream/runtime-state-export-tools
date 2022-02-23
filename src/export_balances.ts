@@ -13,8 +13,8 @@ async function main() {
     : undefined
 
   // Optionally cap exported balance
-  const capBalance = parseInt(process.env.CAP_BALANCE || '') || 0
-  const balances = (await getAllAccountBalances(api, hash)).map(
+  const capBalance = parseInt(process.env.CAP_BALANCE || '0')
+  const allBalances = (await getAllAccountBalances(api, hash)).map(
     ([addr, balance]) => [
       addr,
       capBalance ? Math.min(capBalance, balance) : balance,
@@ -23,7 +23,19 @@ async function main() {
 
   api.disconnect()
 
+  // Drop any accounts with balance less than MIN_BALACE
+  // Best to filter out accounts with less than existential deposit amount
+  const minBalance = parseInt(process.env.MIN_BALANCE || '0')
+  const balances = allBalances.filter(([, balance]) => balance >= minBalance)
+
   console.log(JSON.stringify({ balances }))
+
+  const dropped = allBalances.length - balances.length
+  if (dropped) {
+    console.error(
+      `Dropped ${dropped} accounts with less than ${minBalance} balance`
+    )
+  }
 }
 
 async function getAllAccountBalances(

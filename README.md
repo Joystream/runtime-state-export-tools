@@ -12,6 +12,8 @@ yarn
 export AT_BLOCK_NUMBER=123
 # Cap exported balance
 export CAP_BALANCE=10000
+# Only export accounts with a minium balance (existential balance for example)
+export MIN_BALANCE=10
 # Use specific rpc endpoint (default is ws://localhost:9944)
 WS_URL=wss://rome-rpc-endpoint.joystream.org:9944/
 
