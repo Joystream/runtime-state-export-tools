@@ -4,33 +4,30 @@
   "license": "GPL-3.0-only",
   "private": true,
   "scripts": {
-    "build": "yarn tsc",
-    "postinstall": "yarn build"
+    "format": "prettier ./src --write"
   },
   "dependencies": {
     "@joystream/eslint-config": "^1.0.0",
     "@joystream/prettier-config": "^1.0.0",
-    "@joystream/types": "^0.16.1",
-    "@polkadot/api": "4.2.1",
-    "@polkadot/keyring": "^6.0.5",
-    "@polkadot/types": "4.2.1",
-    "@polkadot/util": "^6.0.5",
-    "@polkadot/util-crypto": "^6.0.5",
-    "@types/bn.js": "^5.1.0",
-    "bn.js": "^5.1.2",
+    "@joystream/types": "^0.17.2",
+    "@polkadot/api": "^5.9.1",
+    "bn.js": "4.12.0",
     "eslint": "^7.8.1",
-    "prettier": "^2.1.1"
+    "prettier": "^2.1.1",
+    "ts-node": "^10.5.0"
   },
   "devDependencies": {
-    "@polkadot/ts": "^0.3.29",
-    "typescript": "^3.9.7"
+    "@polkadot/ts": "^0.4.8",
+    "@types/node": "^10.17.18",
+    "babel-core": "^7.0.0-bridge.0",
+    "typescript": "^4.4.3"
   },
   "engines": {
-    "node": ">=14.0.0",
-    "yarn": "^1.22.0"
+    "node": ">=14.18.0",
+    "yarn": "^1.22.15"
   },
   "volta": {
-    "node": "14.16.1",
-    "yarn": "1.22.4"
+    "node": "14.18.0",
+    "yarn": "1.22.15"
   }
 }

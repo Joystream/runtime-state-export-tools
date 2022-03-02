@@ -65,15 +65,13 @@ async function getForumCheckedStorage<T extends Codec>(
   id: number // PostId | ThreadId | CategoryId
 ): Promise<T> {
   const key = api.query.forum[mapName[map]].key(id)
-  const rawValue = ((await api.rpc.state.getStorage(key)) as unknown) as Option<
-    T
-  >
+  const rawValue = (await api.rpc.state.getStorage(key)) as unknown as Option<T>
 
   if (rawValue.isNone) {
     console.error(`Error: value does not exits: ${map} key: ${id}`)
     process.exit(-1)
   } else {
-    return ((await api.query.forum[mapName[map]](id)) as unknown) as T
+    return (await api.query.forum[mapName[map]](id)) as unknown as T
   }
 }
 
@@ -115,7 +113,9 @@ async function getAllPosts(api: ApiPromise) {
 
 async function getAllCategories(api: ApiPromise) {
   const first = 1
-  const next = ((await api.query.forum.nextCategoryId()) as CategoryId).toNumber()
+  const next = (
+    (await api.query.forum.nextCategoryId()) as CategoryId
+  ).toNumber()
 
   const categories = []
 
